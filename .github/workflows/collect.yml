@@ -5,7 +5,7 @@ on:
     # Chạy vào phút thứ 5 mỗi giờ, giờ UTC.
     # Giờ Việt Nam = UTC + 7, nên "5 * * * *" tương đương chạy vào phút 05
     # của mỗi giờ Việt Nam (ví dụ 08:05, 09:05, 10:05...).
-    - cron: "5 * * * *"
+    - cron: 5 * * * *
   workflow_dispatch: {}   # cho phép bấm chạy tay để test (tab Actions -> Run workflow)
 
 permissions:
