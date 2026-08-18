@@ -196,7 +196,7 @@
                             callbacks: {
                                 label: function(context) {
                                     let kwh = context.raw;
-                                    let text = `${kwh.toFixed(3)} kWh`;
+                                    let text = `${kwh.toFixed(0)} kWh`;
                                     if (unitPrice > 0) {
                                         let cost = (kwh * unitPrice).toLocaleString('vi-VN');
                                         text += ` (${cost} đ)`;
@@ -218,13 +218,14 @@
                                 color: '#333',
                                 font: { size: 12 },
                                 callback: function(value, index) {
-                                    let label = this.getLabelForValue(value);
-                                    let val = dataValues[index] || 0;
-                                    if (unitPrice > 0) {
-                                        return `${label}   ${(val * unitPrice).toLocaleString('vi-VN')}đ`;
-                                    }
-                                    return `${label}   ${val}kWh`;
-                                }
+        let label = this.getLabelForValue(value);
+        let val = Math.round(dataValues[index] || 0); // Làm tròn số kWh thành số nguyên
+        if (unitPrice > 0) {
+            let totalCost = Math.round(val * unitPrice).toLocaleString('vi-VN');
+            return `${label}   ${totalCost}đ`;
+        }
+        return `${label}   ${val}kWh`;
+    }
                             }
                         }
                     }
