@@ -218,14 +218,14 @@
                                 color: '#333',
                                 font: { size: 12 },
                                 callback: function(value, index) {
-        let label = this.getLabelForValue(value);
-        let val = Math.round(dataValues[index] || 0); // Làm tròn số kWh thành số nguyên
-        if (unitPrice > 0) {
-            let totalCost = Math.round(val * unitPrice).toLocaleString('vi-VN');
-            return `${label}   ${totalCost}đ`;
-        }
-        return `${label}   ${val}kWh`;
-    }
+                                    let label = this.getLabelForValue(value);
+                                    let val = Math.round(dataValues[index] || 0); // Làm tròn số kWh thành số nguyên
+                                    if (unitPrice > 0) {
+                                        let totalCost = Math.round(val * unitPrice).toLocaleString('vi-VN');
+                                        return `${label}   ${totalCost}đ`;
+                                    }
+                                    return `${label}   ${val}kWh`;
+                                }
                             }
                         }
                     }
