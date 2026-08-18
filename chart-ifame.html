@@ -3,25 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E-RA Energy Chart</title>
-    <!-- Thư viện Chart.js & PapaParse (đọc CSV) -->
+    <title>Chi phí tiêu thụ điện</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; margin: 10px; background-color: #f9f9f9; }
-        .controls { margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
-        button { padding: 8px 16px; border: none; background: #2E8B57; color: white; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #1e5c39; }
-        .chart-container { position: relative; height: 80vh; width: 100%; }
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+        body { margin: 0; padding: 15px; background-color: #fff; color: #333; }
+        
+        /* Header */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .title { font-size: 14px; color: #555; display: flex; align-items: center; gap: 6px; }
+        .clock { font-size: 13px; color: #666; font-weight: 500; }
+
+        /* Filter Row */
+        .filter-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .date-picker-box { border: 1px solid #ccc; border-radius: 6px; padding: 4px 8px; display: flex; align-items: center; gap: 5px; font-size: 13px; color: #444; }
+        .date-picker-box input { border: none; outline: none; font-size: 13px; color: #333; background: transparent; cursor: pointer; }
+        
+        /* View Mode Buttons (D, W, M, Y) */
+        .btn-group { display: flex; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; }
+        .btn-mode { border: none; background: #fff; padding: 6px 14px; font-size: 13px; font-weight: 500; color: #555; cursor: pointer; border-right: 1px solid #ccc; }
+        .btn-mode:last-child { border-right: none; }
+        .btn-mode.active { background: #009688; color: #fff; }
+
+        /* Pricing Card */
+        .price-card { background-color: #f2f9f9; border-radius: 8px; padding: 12px 15px; margin-bottom: 15px; }
+        .price-title { font-size: 13px; color: #009688; font-weight: 600; margin-bottom: 8px; }
+        .price-input-row { display: flex; gap: 10px; }
+        .price-input-wrapper { flex: 1; position: relative; display: flex; align-items: center; }
+        .price-input-wrapper input { width: 100%; border: 1px solid #009688; border-radius: 6px; padding: 8px 55px 8px 12px; font-size: 13px; outline: none; }
+        .price-unit { position: absolute; right: 12px; font-size: 12px; color: #888; }
+        .btn-calc { background: #009688; color: white; border: none; border-radius: 6px; padding: 0 18px; font-size: 13px; font-weight: 500; cursor: pointer; }
+        .btn-calc:hover { background: #00796b; }
+
+        /* Chart Area */
+        .chart-container { position: relative; width: 100%; height: 320px; }
     </style>
 </head>
 <body>
 
-    <div class="controls">
-        <button onclick="renderChart('hour')">Theo Giờ</button>
-        <button onclick="renderChart('day')">Theo Ngày</button>
-        <button onclick="renderChart('month')">Theo Tháng</button>
-        <button onclick="renderChart('year')">Theo Năm</button>
+    <div class="header">
+        <div class="title">⚡ Chi phí tiêu thụ điện</div>
+        <div class="clock" id="liveClock">00:00</div>
+    </div>
+
+    <div class="filter-row">
+        <div class="date-picker-box">
+            <input type="date" id="startDate" onchange="updateChart()">
+            <span>➔</span>
+            <input type="date" id="endDate" onchange="updateChart()">
+        </div>
+        <div class="btn-group">
+            <button class="btn-mode active" onclick="setMode('D', this)">D</button>
+            <button class="btn-mode" onclick="setMode('W', this)">W</button>
+            <button class="btn-mode" onclick="setMode('M', this)">M</button>
+            <button class="btn-mode" onclick="setMode('Y', this)">Y</button>
+        </div>
+    </div>
+
+    <div class="price-card">
+        <div class="price-title">Nhập đơn giá điện để ước tính chi phí</div>
+        <div class="price-input-row">
+            <div class="price-input-wrapper">
+                <input type="number" id="electricityPrice" placeholder="Nhập giá điện (đ/kWh)" oninput="updateChart()">
+                <span class="price-unit">đ/kWh</span>
+            </div>
+            <button class="btn-calc" onclick="updateChart()">Tính chi phí</button>
+        </div>
     </div>
 
     <div class="chart-container">
@@ -31,73 +79,162 @@
     <script>
         let rawData = [];
         let myChart = null;
+        let currentMode = 'D';
 
-        // 1. Tải và đọc file CSV
-        Papa.parse('era_energy.csv', {
+        // Khởi tạo thời gian mặc định
+        const today = new Date();
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(today.getDate() - 6);
+
+        document.getElementById('endDate').valueAsDate = today;
+        document.getElementById('startDate').valueAsDate = sevenDaysAgo;
+
+        // Đồng hồ góc trên
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('liveClock').innerText = now.toTimeString().substring(0, 5);
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Đổi chế độ xem D / W / M / Y
+        function setMode(mode, btn) {
+            currentMode = mode;
+            document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            updateChart();
+        }
+
+        // Tải dữ liệu từ CSV
+        Papa.parse("era_energy.csv", {
             download: true,
             header: true,
+            skipEmptyLines: true,
             complete: function(results) {
-                rawData = results.data.filter(row => row.Time && row.Consumption);
-                renderChart('hour'); // Mặc định hiển thị theo giờ
+                // Xử lý chuẩn hóa tên cột (tránh lỗi BOM/ký tự ẩn)
+                rawData = results.data.map(row => {
+                    let newRow = {};
+                    for (let key in row) {
+                        let cleanKey = key.replace(/^\uFEFF/, '').trim();
+                        newRow[cleanKey] = row[key];
+                    }
+                    return newRow;
+                }).filter(r => r.Time && r.Consumption);
+
+                updateChart();
             }
         });
 
-        // 2. Hàm vẽ/cập nhật biểu đồ
-        function renderChart(view) {
+        function updateChart() {
             if (!rawData.length) return;
+
+            const startVal = new Date(document.getElementById('startDate').value);
+            const endVal = new Date(document.getElementById('endDate').value);
+            endVal.setHours(23, 59, 59);
+
+            const unitPrice = parseFloat(document.getElementById('electricityPrice').value) || 0;
+
+            // Lọc dữ liệu theo ngày đã chọn
+            let filtered = rawData.filter(r => {
+                let t = new Date(r.Time);
+                return t >= startVal && t <= endVal;
+            });
 
             let grouped = {};
 
-            rawData.forEach(row => {
-                let dateObj = new Date(row.Time);
-                if (isNaN(dateObj)) return;
-
+            filtered.forEach(r => {
+                let d = new Date(r.Time);
+                let val = parseFloat(r.Consumption) || 0;
                 let key = "";
-                let val = parseFloat(row.Consumption) || 0;
 
-                if (view === 'hour') {
-                    // Nhóm theo ngày và giờ (YYYY-MM-DD HH:00)
-                    key = row.Time.substring(0, 13) + ":00";
-                } else if (view === 'day') {
-                    // Nhóm theo ngày (YYYY-MM-DD)
-                    key = row.Time.substring(0, 10);
-                } else if (view === 'month') {
-                    // Nhóm theo tháng (YYYY-MM)
-                    key = row.Time.substring(0, 7);
-                } else if (view === 'year') {
-                    // Nhóm theo năm (YYYY)
-                    key = row.Time.substring(0, 4);
+                if (currentMode === 'D') {
+                    // Hiển thị dạng "Tue-18.08"
+                    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                    let dayName = days[d.getDay()];
+                    let dayNum = String(d.getDate()).padStart(2, '0');
+                    let monthNum = String(d.getMonth() + 1).padStart(2, '0');
+                    key = `${dayName}-${dayNum}.${monthNum}`;
+                } else if (currentMode === 'W') {
+                    // Nhóm theo tuần
+                    key = `Tuần ${getWeekNumber(d)}`;
+                } else if (currentMode === 'M') {
+                    // Nhóm theo tháng
+                    key = `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`;
+                } else if (currentMode === 'Y') {
+                    // Nhóm theo năm
+                    key = `Năm ${d.getFullYear()}`;
                 }
 
                 grouped[key] = (grouped[key] || 0) + val;
             });
 
-            let labels = Object.keys(grouped);
-            let dataValues = Object.values(grouped);
+            // Sắp xếp dữ liệu từ trên xuống dưới trên biểu đồ
+            let labels = Object.keys(grouped).reverse();
+            let dataValues = Object.values(grouped).reverse();
 
-            // Xóa biểu đồ cũ nếu đã tồn tại
             if (myChart) myChart.destroy();
 
-            // Vẽ biểu đồ mới
             const ctx = document.getElementById('energyChart').getContext('2d');
             myChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Tiêu thụ (kWh)',
                         data: dataValues,
-                        backgroundColor: '#2E8B57'
+                        backgroundColor: '#009688',
+                        borderRadius: 4,
+                        barThickness: 16
                     }]
                 },
                 options: {
+                    indexAxis: 'y', // Chuyển thành biểu đồ cột nằm ngang
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let kwh = context.raw;
+                                    let text = `${kwh.toFixed(3)} kWh`;
+                                    if (unitPrice > 0) {
+                                        let cost = (kwh * unitPrice).toLocaleString('vi-VN');
+                                        text += ` (${cost} đ)`;
+                                    }
+                                    return text;
+                                }
+                            }
+                        }
+                    },
                     scales: {
-                        y: { beginAtZero: true, title: { display: true, text: 'kWh' } }
+                        x: {
+                            beginAtZero: true,
+                            grid: { color: '#f0f0f0' },
+                            ticks: { color: '#666' }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: {
+                                color: '#333',
+                                font: { size: 12 },
+                                callback: function(value, index) {
+                                    let label = this.getLabelForValue(value);
+                                    let val = dataValues[index] || 0;
+                                    if (unitPrice > 0) {
+                                        return `${label}   ${(val * unitPrice).toLocaleString('vi-VN')}đ`;
+                                    }
+                                    return `${label}   ${val}kWh`;
+                                }
+                            }
+                        }
                     }
                 }
             });
+        }
+
+        function getWeekNumber(d) {
+            let onejan = new Date(d.getFullYear(), 0, 1);
+            return Math.ceil((((d - onejan) / 86400000) + onejan.getDay() + 1) / 7);
         }
     </script>
 </body>
