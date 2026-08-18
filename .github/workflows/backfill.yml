@@ -1,0 +1,40 @@
+name: Lay du lieu lich su (backfill)
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "So ngay lay nguoc lai tinh tu hien tai"
+        required: false
+        default: "30"
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Cai dat Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cai thu vien
+        run: pip install requests
+
+      - name: Chay script lay du lieu lich su
+        env:
+          EOH_TOKEN: ${{ secrets.EOH_TOKEN }}
+        run: python era_backfill.py --days ${{ github.event.inputs.days }}
+
+      - name: Luu ket qua vao repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add era_energy.csv
+          git diff --staged --quiet && echo "Khong co thay doi" || git commit -m "Backfill du lieu lich su"
+          git push
