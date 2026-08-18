@@ -9,24 +9,16 @@
     <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
         body { margin: 0; padding: 15px; background-color: #fff; color: #333; }
-        
-        /* Header */
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .title { font-size: 14px; color: #555; display: flex; align-items: center; gap: 6px; }
         .clock { font-size: 13px; color: #666; font-weight: 500; }
-
-        /* Filter Row */
         .filter-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .date-picker-box { border: 1px solid #ccc; border-radius: 6px; padding: 4px 8px; display: flex; align-items: center; gap: 5px; font-size: 13px; color: #444; }
         .date-picker-box input { border: none; outline: none; font-size: 13px; color: #333; background: transparent; cursor: pointer; }
-        
-        /* View Mode Buttons (D, W, M, Y) */
         .btn-group { display: flex; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; }
         .btn-mode { border: none; background: #fff; padding: 6px 14px; font-size: 13px; font-weight: 500; color: #555; cursor: pointer; border-right: 1px solid #ccc; }
         .btn-mode:last-child { border-right: none; }
         .btn-mode.active { background: #009688; color: #fff; }
-
-        /* Pricing Card */
         .price-card { background-color: #f2f9f9; border-radius: 8px; padding: 12px 15px; margin-bottom: 15px; }
         .price-title { font-size: 13px; color: #009688; font-weight: 600; margin-bottom: 8px; }
         .price-input-row { display: flex; gap: 10px; }
@@ -35,8 +27,6 @@
         .price-unit { position: absolute; right: 12px; font-size: 12px; color: #888; }
         .btn-calc { background: #009688; color: white; border: none; border-radius: 6px; padding: 0 18px; font-size: 13px; font-weight: 500; cursor: pointer; }
         .btn-calc:hover { background: #00796b; }
-
-        /* Chart Area */
         .chart-container { position: relative; width: 100%; height: 320px; }
     </style>
 </head>
@@ -81,15 +71,13 @@
         let myChart = null;
         let currentMode = 'D';
 
-        // Khởi tạo thời gian mặc định
         const today = new Date();
         const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(today.getDate() - 6);
+        sevenDaysAgo.setDate(today.getDate() - 18);
 
         document.getElementById('endDate').valueAsDate = today;
         document.getElementById('startDate').valueAsDate = sevenDaysAgo;
 
-        // Đồng hồ góc trên
         function updateClock() {
             const now = new Date();
             document.getElementById('liveClock').innerText = now.toTimeString().substring(0, 5);
@@ -97,7 +85,6 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Đổi chế độ xem D / W / M / Y
         function setMode(mode, btn) {
             currentMode = mode;
             document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('active'));
@@ -105,13 +92,12 @@
             updateChart();
         }
 
-        // Tải dữ liệu từ CSV
-        Papa.parse("era_energy.csv", {
+        // Bỏ cache bằng ?t=Date.now()
+        Papa.parse("era_energy.csv?t=" + Date.now(), {
             download: true,
             header: true,
             skipEmptyLines: true,
             complete: function(results) {
-                // Xử lý chuẩn hóa tên cột (tránh lỗi BOM/ký tự ẩn)
                 rawData = results.data.map(row => {
                     let newRow = {};
                     for (let key in row) {
@@ -134,7 +120,6 @@
 
             const unitPrice = parseFloat(document.getElementById('electricityPrice').value) || 0;
 
-            // Lọc dữ liệu theo ngày đã chọn
             let filtered = rawData.filter(r => {
                 let t = new Date(r.Time);
                 return t >= startVal && t <= endVal;
@@ -148,27 +133,22 @@
                 let key = "";
 
                 if (currentMode === 'D') {
-                    // Hiển thị dạng "Tue-18.08"
                     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                     let dayName = days[d.getDay()];
                     let dayNum = String(d.getDate()).padStart(2, '0');
                     let monthNum = String(d.getMonth() + 1).padStart(2, '0');
                     key = `${dayName}-${dayNum}.${monthNum}`;
                 } else if (currentMode === 'W') {
-                    // Nhóm theo tuần
                     key = `Tuần ${getWeekNumber(d)}`;
                 } else if (currentMode === 'M') {
-                    // Nhóm theo tháng
                     key = `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`;
                 } else if (currentMode === 'Y') {
-                    // Nhóm theo năm
                     key = `Năm ${d.getFullYear()}`;
                 }
 
                 grouped[key] = (grouped[key] || 0) + val;
             });
 
-            // Sắp xếp dữ liệu từ trên xuống dưới trên biểu đồ
             let labels = Object.keys(grouped).reverse();
             let dataValues = Object.values(grouped).reverse();
 
@@ -187,7 +167,7 @@
                     }]
                 },
                 options: {
-                    indexAxis: 'y', // Chuyển thành biểu đồ cột nằm ngang
+                    indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
@@ -195,18 +175,17 @@
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    let kwh = context.raw;
-                                    let text = `${kwh.toFixed(0)} kWh`;
+                                    let kwh = Math.round(context.raw);
+                                    let text = `${kwh} kWh`;
                                     if (unitPrice > 0) {
-                                        let cost = (kwh * unitPrice).toLocaleString('vi-VN');
+                                        let cost = Math.round(kwh * unitPrice).toLocaleString('vi-VN');
                                         text += ` (${cost} đ)`;
                                     }
                                     return text;
-                                  }
                                 }
-                              }
-                           }
-                        },
+                            }
+                        }
+                    },
                     scales: {
                         x: {
                             beginAtZero: true,
@@ -220,7 +199,7 @@
                                 font: { size: 12 },
                                 callback: function(value, index) {
                                     let label = this.getLabelForValue(value);
-                                    let val = Math.round(dataValues[index] || 0); // Làm tròn số kWh thành số nguyên
+                                    let val = Math.round(dataValues[index] || 0);
                                     if (unitPrice > 0) {
                                         let totalCost = Math.round(val * unitPrice).toLocaleString('vi-VN');
                                         return `${label}   ${totalCost}đ`;
