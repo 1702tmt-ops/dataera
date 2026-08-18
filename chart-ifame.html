@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-RA Energy Chart</title>
+    <!-- Thư viện Chart.js & PapaParse (đọc CSV) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 10px; background-color: #f9f9f9; }
+        .controls { margin-bottom: 15px; display: flex; gap: 10px; align-items: center; }
+        button { padding: 8px 16px; border: none; background: #2E8B57; color: white; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #1e5c39; }
+        .chart-container { position: relative; height: 80vh; width: 100%; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <button onclick="renderChart('hour')">Theo Giờ</button>
+        <button onclick="renderChart('day')">Theo Ngày</button>
+        <button onclick="renderChart('month')">Theo Tháng</button>
+        <button onclick="renderChart('year')">Theo Năm</button>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="energyChart"></canvas>
+    </div>
+
+    <script>
+        let rawData = [];
+        let myChart = null;
+
+        // 1. Tải và đọc file CSV
+        Papa.parse('era_energy.csv', {
+            download: true,
+            header: true,
+            complete: function(results) {
+                rawData = results.data.filter(row => row.Time && row.Consumption);
+                renderChart('hour'); // Mặc định hiển thị theo giờ
+            }
+        });
+
+        // 2. Hàm vẽ/cập nhật biểu đồ
+        function renderChart(view) {
+            if (!rawData.length) return;
+
+            let grouped = {};
+
+            rawData.forEach(row => {
+                let dateObj = new Date(row.Time);
+                if (isNaN(dateObj)) return;
+
+                let key = "";
+                let val = parseFloat(row.Consumption) || 0;
+
+                if (view === 'hour') {
+                    // Nhóm theo ngày và giờ (YYYY-MM-DD HH:00)
+                    key = row.Time.substring(0, 13) + ":00";
+                } else if (view === 'day') {
+                    // Nhóm theo ngày (YYYY-MM-DD)
+                    key = row.Time.substring(0, 10);
+                } else if (view === 'month') {
+                    // Nhóm theo tháng (YYYY-MM)
+                    key = row.Time.substring(0, 7);
+                } else if (view === 'year') {
+                    // Nhóm theo năm (YYYY)
+                    key = row.Time.substring(0, 4);
+                }
+
+                grouped[key] = (grouped[key] || 0) + val;
+            });
+
+            let labels = Object.keys(grouped);
+            let dataValues = Object.values(grouped);
+
+            // Xóa biểu đồ cũ nếu đã tồn tại
+            if (myChart) myChart.destroy();
+
+            // Vẽ biểu đồ mới
+            const ctx = document.getElementById('energyChart').getContext('2d');
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Tiêu thụ (kWh)',
+                        data: dataValues,
+                        backgroundColor: '#2E8B57'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'kWh' } }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
